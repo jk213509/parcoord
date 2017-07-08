@@ -4,7 +4,7 @@
 
 import sys
 import random
-from parcoord.plot import parallel_coordinates
+from parcoord.plot import ParCoord
 from PyQt5 import QtCore, QtWidgets
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.colors
@@ -31,20 +31,41 @@ var_labels = ['var' + str(idx) for idx in range(num_vars)]
 
 # Examples
 mode = 4
-fig_pc = None
+par_co = None
 if mode == 0:  # basic
-    fig_pc = parallel_coordinates(data)
+    par_co = ParCoord(data)
+    par_co.plot()
 elif mode == 1:  # single color is specified
-    fig_pc = parallel_coordinates(data, x_labels=var_labels, num_ticks=6, colors='r')
+    par_co = ParCoord(data)
+    par_co.set_colors('r')
+    par_co.plot(num_ticks=6)
+    par_co.set_labels(var_labels)
 elif mode == 2:  # color list is specified
-    fig_pc = parallel_coordinates(data, x_labels=var_labels, num_ticks=6, colors=colors, line_width=.9)
+    par_co = ParCoord(data)
+    par_co.set_colors(colors)
+    par_co.plot(num_ticks=6,
+                line_width=.9)
+    par_co.set_labels(var_labels)
 elif mode == 3:  # color map is specified
-    fig_pc = parallel_coordinates(data, x_labels=var_labels, num_ticks=6, scores=scores, color_map_type='cool')
+    par_co = ParCoord(data)
+    par_co.set_scores(scores)
+    par_co.plot(num_ticks=6)
+    par_co.set_labels(var_labels)
+    par_co.add_color_bar()
 elif mode == 4:  # color map is specified with additional inputs
-    color_map_norm_type = matplotlib.colors.LogNorm
-    fig_pc = parallel_coordinates(data, x_labels=var_labels, num_ticks=6, scores=scores, color_map_type='magma',
-                                  color_map_norm_type=color_map_norm_type, scores_norm_min=1e-5,
-                                  scores_norm_max=max(scores), plot_high_scores_on_top=False, line_width=1.5)
+    par_co = ParCoord(data)
+    par_co.set_scores(scores=scores,
+                      color_style='magma',
+                      color_map_norm_type=matplotlib.colors.LogNorm,
+                      scores_norm_min=min(scores),
+                      scores_norm_max=1,
+                      plot_high_scores_on_top=False,
+                      use_variable_line_width=False)
+    par_co.plot(num_ticks=6,
+                line_width=1.5)
+    par_co.set_labels(var_labels)
+    par_co.add_color_bar(label='Test Label')
+fig = par_co.fig
 
 # Show in PyQt
 # App
@@ -55,7 +76,7 @@ window.setAttribute(QtCore.Qt.WA_DeleteOnClose)
 # Widget
 widget = QtWidgets.QWidget(window)
 # Canvas
-canvas = FigureCanvas(fig_pc)
+canvas = FigureCanvas(fig)
 canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 canvas.updateGeometry()
 # Add canvas to widget

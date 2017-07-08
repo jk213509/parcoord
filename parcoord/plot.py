@@ -10,162 +10,203 @@ from matplotlib import colors as mpl_colors, cm as mpl_cm, colorbar as mpl_color
 # Make sure that we are using QT5
 matplotlib.use('Qt5Agg')
 
+# TODO: Optional arg: y limits (adjust min/max computed for data sets)
+# TODO: Make re-plot functionality (don't re-create axes)
+# TODO: Determine which part of code takes longest (pproject from pypi)
 
-def parallel_coordinates(data_sets, x_labels: list=None, num_ticks: int=7, colors=None, scores: list=None,
-                         color_map_type='magma', color_map_norm_type=mpl_colors.Normalize,
-                         scores_norm_min=None, scores_norm_max=None, plot_high_scores_on_top: bool=True,
-                         line_width=1.1):
-    """
-    Parallel Coordinates
-    This function plots the values of data set coordinates on parallel axes with connecting lines
-    Note: append color map string with _r to reverse the colors
-    :param data_sets: coordinate values
-    :param x_labels: (optional) string values of coordinate names
-    :param num_ticks: (optional) number of ticks on y-axes
-    :param colors: (optional) single color, or list of colors for each data set
-    :param scores: (optional) used to assign color to each data set
-    :param color_map_type: (optional) string of color map type (e.g., 'magma')
-    :param color_map_norm_type: (optional) matplotlib.colors instance (e.g., matplotlib.colors.Normalize)
-    :param scores_norm_min: (optional) lower normalization constant for color representation of data sets
-    :param scores_norm_max: (optional) upper normalization constant for color representation of data sets
-    :param plot_high_scores_on_top: (optional) plot high score data sets on top if True, bottom if False
-    :param line_width: (optional) data set plot line width
-    :return: instance of matplotlib.figure.Figure
-    """
 
-    # Verify user input
-    dims = len(data_sets[0])
-    # dimensions
-    if dims < 2:
-        raise ValueError('Must supply data with more than one dimension.')
-    if x_labels is not None and len(x_labels) != dims:
-        raise ValueError('If x_labels is specified, its length must be equal to the number of coordinates')
-    # make sure there are no nan's
-    for data_set in data_sets:
-        if np.nan in data_set:
-            raise ValueError('Argument "data_sets" must not contain nan\'s')
-    if scores is not None and np.nan in scores:
-        raise ValueError('Argument "scores" must not contain nan\'s')
-    if scores_norm_min is not None and not isinstance(scores_norm_min, (int, float)):
-        raise ValueError('Argument "scores_norm_min" must be a number')
-    if scores_norm_max is not None and not isinstance(scores_norm_max, (int, float)):
-        raise ValueError('Argument "scores_norm_max" must be a number')
-    # colors
-    if colors is not None and isinstance(colors, str):
-        colors = [colors] * len(data_sets)
-    # scores and associated optional inputs
-    use_color_bar = False
-    if colors is None and scores is not None:
-        use_color_bar = True
-    else:
-        scores = list()  # to avoid IDE warnings...
-    if use_color_bar and len(data_sets) != len(scores):
-        raise ValueError('Number of data sets must be equal to the number of scores')
-    if use_color_bar and scores_norm_min is None:
-        scores_norm_min = min(scores)
-    if use_color_bar and scores_norm_max is None:
-        scores_norm_max = max(scores)
-    if not isinstance(color_map_type, str):
-        raise ValueError('Variable color_map_type must be a string')
+class ParCoord:
+    def __init__(self,
+                 data_sets: list):
 
-    # Setup figure and axes
-    x = range(dims)
-    fig = mpl_figure.Figure()
-    axes = list()
-    num_axes = dims-1
-    if use_color_bar:
-        num_axes += 1
-    for idx in range(dims-1):
-        axes.append(fig.add_subplot(1, num_axes, idx+1))
+        # Verify user input
+        num_dims = len(data_sets[0])
+        # dimensions
+        if num_dims < 2:
+            raise ValueError('Must supply data with more than one dimension.')
 
-    # Calculate the limits on the data
-    data_sets_info = list()
-    for m in zip(*data_sets):
-        mn = min(m)
-        mx = max(m)
-        if mn == mx:
-            mn -= 0.5
-            mx = mn + 1.
-        r = float(mx - mn)
-        data_sets_info.append({'min': mn, 'max': mx, 'range': r})
+        # Setup figure and axes
+        x = range(num_dims)
+        fig = mpl_figure.Figure()
+        axes = list()
+        for idx in range(num_dims - 1):
+            axes.append(fig.add_subplot(1, num_dims-1, idx + 1))
 
-    # Normalize the data sets
-    norm_data_sets = list()
-    for ds in data_sets:
-        nds = [(value - data_sets_info[dimension]['min']) / data_sets_info[dimension]['range']
-               for dimension, value in enumerate(ds)]
-        norm_data_sets.append(nds)
-    data_sets = norm_data_sets
+        # Store, initialize values
+        self.fig = fig
+        self._axes = axes
+        self._ax_color_bar = None
+        self._x = x
+        self._data_sets = None
+        self._data_sets_info = None
+        self._num_dims = num_dims
+        self._colors = None
+        self._scores = None
+        self._scores_norm_min = None
+        self._scores_norm_max = None
+        self._color_style = None
+        self._color_map_norm = None
+        self._use_variable_line_width = False
 
-    # Plot the data sets on all the subplots
-    color_map_norm_scores = None
-    color_map_scores = None
-    sorted_scores_indices = None
-    if use_color_bar:
-        color_map_norm_scores = color_map_norm_type(vmin=scores_norm_min, vmax=scores_norm_max, clip=True)
-        color_map_scores = mpl_cm.ScalarMappable(cmap=color_map_type, norm=color_map_norm_scores)
+        # Normalize, find limits of data
+        self._set_data(data_sets)
+
+    def _set_data(self,
+                  data_sets: list):
+        # make sure there are no nan's
+        for data_set in data_sets:
+            if np.nan in data_set:
+                raise ValueError('Argument "data_sets" must not contain nan\'s')
+
+        # Calculate the limits of the data
+        data_sets_info = list()
+        for m in zip(*data_sets):
+            mn = min(m)
+            mx = max(m)
+            if mn == mx:
+                mn -= 0.5
+                mx = mn + 1.
+            r = float(mx - mn)
+            data_sets_info.append({'min': mn, 'max': mx, 'range': r})
+
+        # Normalize the data sets
+        norm_data_sets = list()
+        for ds in data_sets:
+            nds = [(value - data_sets_info[dimension]['min']) / data_sets_info[dimension]['range']
+                   for dimension, value in enumerate(ds)]
+            norm_data_sets.append(nds)
+        data_sets = norm_data_sets
+
+        # Store values
+        self._data_sets = data_sets
+        self._data_sets_info = data_sets_info
+
+    def reset_data(self,
+                   data_sets: list):
+        self._scores = None
+        self._colors = None
+        self._set_data(data_sets)
+
+    def plot(self,
+             num_ticks: int=7,
+             line_width=1.1):
+
+        # Clear axes in case they were plotted on previously
+        for ax in self._axes:
+            ax.clear()
+
+        # Plot the data sets on all the subplots
+        for i, ax in enumerate(self._axes):
+            for dsi in range(len(self._data_sets)):
+                if self._colors is not None:
+                    if self._scores is not None and self._use_variable_line_width and self._scores[0] != self._scores[-1]:
+                        min_width = line_width
+                        max_width = min_width + 3
+                        line_width_iter = min_width + (max_width - min_width)*(self._scores[-1] - self._scores[dsi])\
+                                          / (self._scores[-1] - self._scores[0])
+                    else:
+                        line_width_iter = line_width
+                    ax.plot(self._x, self._data_sets[dsi], linewidth=line_width_iter, color=self._colors[dsi])
+                else:
+                    ax.plot(self._x, self._data_sets[dsi], linewidth=line_width)
+            ax.set_xlim([self._x[i], self._x[i+1]])
+
+        # Set the axis ticks
+        for dimension, (ax, xx) in enumerate(zip(self._axes, self._x[:-1])):
+            # x-axis
+            ax.xaxis.set_major_locator(mpl_ticker.FixedLocator([xx]))
+            # y-axis
+            ax.yaxis.set_major_locator(mpl_ticker.FixedLocator(list(np.linspace(0, 1, num_ticks))))
+            min_ = self._data_sets_info[dimension]['min']
+            range_ = self._data_sets_info[dimension]['range']
+            labels = ['{:4.2f}'.format(min_ + range_*idx/num_ticks) for idx in range(num_ticks+1)]
+            ax.set_yticklabels(labels, color='k', weight='semibold')  # backgroundcolor='0.75'
+
+        # Move the final axis' ticks to the right-hand side
+        ax_last = self._axes[-1].twinx()
+        dimension_last = self._num_dims-1
+        # x-axis
+        ax_last.xaxis.set_major_locator(mpl_ticker.FixedLocator([self._x[-2], self._x[-1]]))
+        # y-axis
+        ax_last.yaxis.set_major_locator(mpl_ticker.FixedLocator(list(np.linspace(0, 1, num_ticks))))
+        num_ticks = len(ax_last.get_yticklabels())
+        min_ = self._data_sets_info[dimension_last]['min']
+        range_ = self._data_sets_info[dimension_last]['range']
+        labels = ['{:4.2f}'.format(min_ + range_ * idx / num_ticks) for idx in range(num_ticks + 1)]
+        ax_last.set_yticklabels(labels, color='k', weight='semibold')
+
+        # Stack the subplots
+        self.fig.subplots_adjust(wspace=0)
+
+        # Adjust plot borders, labels
+        self._axes.append(ax_last)
+        for ax in self._axes:
+            ax.tick_params(direction='inout', length=10, width=1)
+            ax.tick_params(axis='x', pad=20, labelsize=12)
+            ax.set_ylim(0, 1)
+            ax.spines['bottom'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+
+    def set_colors(self,
+                   colors: str or list):
+        if isinstance(colors, str):
+            colors = [colors] * len(self._data_sets)
+        self._colors = colors
+        self._scores = None
+
+    def set_scores(self,
+                   scores: list,
+                   color_map_norm_type=mpl_colors.Normalize,
+                   color_style: str='cool',
+                   scores_norm_min: int or float=None,
+                   scores_norm_max: int or float=None,
+                   plot_high_scores_on_top: bool=True,
+                   use_variable_line_width: bool=False):
+        # Create color map
+        if scores_norm_min is None:
+            scores_norm_min = min(scores)
+        if scores_norm_max is None:
+            scores_norm_max = max(scores)
+        color_map_norm = color_map_norm_type(vmin=scores_norm_min, vmax=scores_norm_max, clip=True)
+        color_map = mpl_cm.ScalarMappable(cmap=color_style, norm=color_map_norm)
+        # Sort data sets, scores
         sorted_scores_indices = list(np.argsort(scores))
         if not plot_high_scores_on_top:
             sorted_scores_indices = sorted_scores_indices[::-1]
-    for i, ax in enumerate(axes):
-        for dsi in range(len(data_sets)):
-            if colors is not None:
-                ax.plot(x, data_sets[dsi], colors[dsi], linewidth=line_width)
-            elif use_color_bar:
-                # optional plot argument zorder didn't seem to work...
-                ax.plot(x, data_sets[sorted_scores_indices[dsi]], linewidth=line_width,
-                        color=color_map_scores.to_rgba(scores[sorted_scores_indices[dsi]]))
-            else:
-                ax.plot(x, data_sets[dsi], linewidth=line_width)
-        ax.set_xlim([x[i], x[i+1]])
+        self._data_sets = [self._data_sets[idx] for idx in sorted_scores_indices]
+        scores = [scores[idx] for idx in sorted_scores_indices]
+        # Set plot colors
+        colors = list()
+        for score in scores:
+            colors.append(color_map.to_rgba(score))
+        # Store values
+        self._color_style = color_style
+        self._colors = colors
+        self._scores = scores
+        self._scores_norm_min = scores_norm_min
+        self._scores_norm_max = scores_norm_max
+        self._color_map_norm = color_map_norm
+        self._use_variable_line_width = use_variable_line_width
 
-    # Set the axis ticks
-    for dimension, (axx, xx) in enumerate(zip(axes, x[:-1])):
-        # x-axis
-        axx.xaxis.set_major_locator(mpl_ticker.FixedLocator([xx]))
-        if x_labels is not None:
-            axx.set_xticklabels([x_labels[dimension]], color='k')
-        # y-axis
-        axx.yaxis.set_major_locator(mpl_ticker.FixedLocator(list(np.linspace(0, 1, num_ticks))))
-        min_ = data_sets_info[dimension]['min']
-        range_ = data_sets_info[dimension]['range']
-        labels = ['{:4.2f}'.format(min_ + range_*idx/num_ticks) for idx in range(num_ticks+1)]
-        axx.set_yticklabels(labels, color='k', weight='semibold')  # backgroundcolor='0.75'
+    def set_labels(self,
+                   labels: list):
+        for idx in range(self._num_dims - 1):
+            self._axes[idx].set_xticklabels([labels[idx]], color='k')
+        self._axes[self._num_dims - 1].set_xticklabels([labels[self._num_dims-2], labels[self._num_dims-1]], color='k')
 
-    # Move the final axis' ticks to the right-hand side
-    axx_last = axes[-1].twinx()
-    dimension = dims-1
-    # x-axis
-    axx_last.xaxis.set_major_locator(mpl_ticker.FixedLocator([x[-2], x[-1]]))
-    if x_labels is not None:
-        axx_last.set_xticklabels([x_labels[-2], x_labels[-1]], color='k')
-    # y-axis
-    axx_last.yaxis.set_major_locator(mpl_ticker.FixedLocator(list(np.linspace(0, 1, num_ticks))))
-    num_ticks = len(axx_last.get_yticklabels())
-    min_ = data_sets_info[dimension]['min']
-    range_ = data_sets_info[dimension]['range']
-    labels = ['{:4.2f}'.format(min_ + range_ * idx / num_ticks) for idx in range(num_ticks + 1)]
-    axx_last.set_yticklabels(labels, color='k', weight='semibold')
-
-    # Stack the subplots
-    fig.subplots_adjust(wspace=0)
-
-    # Adjust plot borders, labels
-    axes.append(axx_last)
-    for axx in axes:
-        axx.tick_params(direction='inout', length=10, width=1)
-        axx.tick_params(axis='x', pad=20, labelsize=12)
-        axx.set_ylim(0, 1)
-        axx.spines['bottom'].set_visible(False)
-        axx.spines['top'].set_visible(False)
-
-    # Add color bar
-    if use_color_bar:
-        pos_last_axx = axes[-1].get_position().bounds
-        axx_color_bar = fig.add_axes([pos_last_axx[0] + pos_last_axx[2] + .05, pos_last_axx[1], .05, pos_last_axx[3]])
-        cb1 = mpl_colorbar.ColorbarBase(axx_color_bar, cmap=color_map_type, norm=color_map_norm_scores,
-                                        orientation='vertical')
-        cb1.set_label('Some Units')
-        fig.subplots_adjust(wspace=0)
-
-    return fig
+    def add_color_bar(self,
+                      label: str or None=None):
+        if self._scores is not None:
+            if self._ax_color_bar is None:  # if axis for color bar not yet created
+                # create axis for color bar
+                self._ax_color_bar = mpl_colorbar.make_axes(self._axes, Location='right')[0]
+            self._ax_color_bar.set_ylim([self._scores_norm_min, self._scores_norm_max])
+            cb = mpl_colorbar.ColorbarBase(self._ax_color_bar,
+                                           cmap=self._color_style,
+                                           norm=self._color_map_norm,
+                                           orientation='vertical',
+                                           )
+            if label:
+                cb.set_label(label)
+        else:
+            raise ValueError('Set scores before adding a color bar.')

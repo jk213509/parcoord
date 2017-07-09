@@ -24,7 +24,7 @@ data.extend([[base[x] + random.uniform(0., 1.)*scale[x] for x in range(num_vars)
 colors.extend(['b'] * 30)
 
 # Scores for example
-scores = [random.uniform(0, 1) for _ in range(60)]
+scores = [5*random.uniform(0, 1) for _ in range(60)]
 
 # Make x-axis tick labels
 var_labels = ['var' + str(idx) for idx in range(num_vars)]
@@ -53,16 +53,20 @@ elif mode == 3:  # color map is specified
     par_co.set_labels(var_labels)
     par_co.add_color_bar()
 elif mode == 4:  # color map is specified with additional inputs
+    y_min = [min(col)-.1*(max(col)-min(col)) for col in zip(*data)]
+    y_max = [max(col)+.1*(max(col)-min(col)) for col in zip(*data)]
     par_co = ParCoord(data)
     par_co.set_scores(scores=scores,
                       color_style='magma',
                       color_map_norm_type=matplotlib.colors.LogNorm,
                       scores_norm_min=min(scores),
-                      scores_norm_max=1,
+                      scores_norm_max=max(scores),
                       plot_high_scores_on_top=False,
-                      use_variable_line_width=False)
+                      use_variable_line_width=True)
     par_co.plot(num_ticks=6,
-                line_width=1.5)
+                line_width=1.5,
+                y_min=y_min,
+                y_max=y_max)
     par_co.set_labels(var_labels)
     par_co.add_color_bar(label='Test Label')
 fig = par_co.fig

@@ -10,7 +10,6 @@ from matplotlib import colors as mpl_colors, cm as mpl_cm, colorbar as mpl_color
 # Make sure that we are using QT5
 matplotlib.use('Qt5Agg')
 
-# TODO: Optional arg: y limits (adjust min/max computed for data sets)
 # TODO: Make re-plot functionality (don't re-create axes)
 # TODO: Determine which part of code takes longest (pproject from pypi)
 
@@ -58,28 +57,8 @@ class ParCoord:
             if np.nan in data_set:
                 raise ValueError('Argument "data_sets" must not contain nan\'s')
 
-        # Calculate the limits of the data
-        data_sets_info = list()
-        for m in zip(*data_sets):
-            mn = min(m)
-            mx = max(m)
-            if mn == mx:
-                mn -= 0.5
-                mx = mn + 1.
-            r = float(mx - mn)
-            data_sets_info.append({'min': mn, 'max': mx, 'range': r})
-
-        # Normalize the data sets
-        norm_data_sets = list()
-        for ds in data_sets:
-            nds = [(value - data_sets_info[dimension]['min']) / data_sets_info[dimension]['range']
-                   for dimension, value in enumerate(ds)]
-            norm_data_sets.append(nds)
-        data_sets = norm_data_sets
-
         # Store values
         self._data_sets = data_sets
-        self._data_sets_info = data_sets_info
 
     def reset_data(self,
                    data_sets: list):
@@ -89,7 +68,33 @@ class ParCoord:
 
     def plot(self,
              num_ticks: int=7,
-             line_width=1.1):
+             line_width=1.1,
+             y_min: list or None=None,
+             y_max: list or None=None):
+
+        # Calculate the limits of the data
+        data_sets_info = list()
+        for idx, m in enumerate(zip(*self._data_sets)):
+            if y_min is not None:
+                mn = y_min[idx]
+            else:
+                mn = min(m)
+            if y_max is not None:
+                mx = y_max[idx]
+            else:
+                mx = max(m)
+            if mn == mx:
+                mn -= 0.5
+                mx = mn + 1.
+            r = float(mx - mn)
+            data_sets_info.append({'min': mn, 'max': mx, 'range': r})
+
+        # Normalize the data sets
+        norm_data_sets = list()
+        for ds in self._data_sets:
+            nds = [(value - data_sets_info[dimension]['min']) / data_sets_info[dimension]['range']
+                   for dimension, value in enumerate(ds)]
+            norm_data_sets.append(nds)
 
         # Clear axes in case they were plotted on previously
         for ax in self._axes:
@@ -97,18 +102,18 @@ class ParCoord:
 
         # Plot the data sets on all the subplots
         for i, ax in enumerate(self._axes):
-            for dsi in range(len(self._data_sets)):
+            for dsi in range(len(norm_data_sets)):
                 if self._colors is not None:
-                    if self._scores is not None and self._use_variable_line_width and self._scores[0] != self._scores[-1]:
+                    if self._scores is not None and self._use_variable_line_width and self._scores[0]!=self._scores[-1]:
                         min_width = line_width
                         max_width = min_width + 3
                         line_width_iter = min_width + (max_width - min_width)*(self._scores[-1] - self._scores[dsi])\
                                           / (self._scores[-1] - self._scores[0])
                     else:
                         line_width_iter = line_width
-                    ax.plot(self._x, self._data_sets[dsi], linewidth=line_width_iter, color=self._colors[dsi])
+                    ax.plot(self._x, norm_data_sets[dsi], linewidth=line_width_iter, color=self._colors[dsi])
                 else:
-                    ax.plot(self._x, self._data_sets[dsi], linewidth=line_width)
+                    ax.plot(self._x, norm_data_sets[dsi], linewidth=line_width)
             ax.set_xlim([self._x[i], self._x[i+1]])
 
         # Set the axis ticks
@@ -117,9 +122,9 @@ class ParCoord:
             ax.xaxis.set_major_locator(mpl_ticker.FixedLocator([xx]))
             # y-axis
             ax.yaxis.set_major_locator(mpl_ticker.FixedLocator(list(np.linspace(0, 1, num_ticks))))
-            min_ = self._data_sets_info[dimension]['min']
-            range_ = self._data_sets_info[dimension]['range']
-            labels = ['{:4.2f}'.format(min_ + range_*idx/num_ticks) for idx in range(num_ticks+1)]
+            min_ = data_sets_info[dimension]['min']
+            max_ = data_sets_info[dimension]['max']
+            labels = ['{:4.2f}'.format(val) for val in np.linspace(min_, max_, num_ticks)]
             ax.set_yticklabels(labels, color='k', weight='semibold')  # backgroundcolor='0.75'
 
         # Move the final axis' ticks to the right-hand side
@@ -130,9 +135,9 @@ class ParCoord:
         # y-axis
         ax_last.yaxis.set_major_locator(mpl_ticker.FixedLocator(list(np.linspace(0, 1, num_ticks))))
         num_ticks = len(ax_last.get_yticklabels())
-        min_ = self._data_sets_info[dimension_last]['min']
-        range_ = self._data_sets_info[dimension_last]['range']
-        labels = ['{:4.2f}'.format(min_ + range_ * idx / num_ticks) for idx in range(num_ticks + 1)]
+        min_ = data_sets_info[dimension_last]['min']
+        max_ = data_sets_info[dimension_last]['max']
+        labels = ['{:4.2f}'.format(val) for val in np.linspace(min_, max_, num_ticks)]
         ax_last.set_yticklabels(labels, color='k', weight='semibold')
 
         # Stack the subplots

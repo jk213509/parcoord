@@ -29,6 +29,7 @@ scores = [5*random.uniform(0, 1) for _ in range(60)]
 
 # Make x-axis tick labels
 var_labels = ['var' + str(idx) for idx in range(num_vars)]
+
 # Examples
 mode = 4
 par_co = None

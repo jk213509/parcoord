@@ -71,14 +71,21 @@ class ParCoord:
     def set_visible(self,
                     visible: List[bool]):
         if len(visible) != len(self._data_sets):
-            ValueError('List "visible" passed to set_visible must be same length as number of data sets')
+            raise ValueError('List "visible" passed to set_visible must be same length as number of data sets')
         if self._scores is not None:
             visible = [visible[idx] for idx in self._sorted_scores_indices]
         for ax in self._axes:
             for idx, line in enumerate(ax.lines):
                 if not isinstance(visible[idx], bool):
-                    ValueError('List "visible" passed to set_visible must only contain booleans.')
+                    raise ValueError('List "visible" passed to set_visible must only contain booleans.')
                 line.set_visible(visible[idx])
+
+    def save_fig(self,
+                 path: str):
+        try:
+            self.fig.savefig(path)
+        except:
+            raise ValueError('Could not save file to path ' + path)
 
     def plot(self,
              num_ticks: int=7,

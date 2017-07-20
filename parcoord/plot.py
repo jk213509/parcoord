@@ -48,7 +48,7 @@ class ParCoord:
         self._color_style = None
         self._color_map_norm = None
         self._use_variable_line_width = False
-        self._sort_map = None
+        self._sorted_scores_indices = None
 
         self._set_data(data_sets)
 
@@ -64,18 +64,21 @@ class ParCoord:
     def reset_data(self,
                    data_sets: list):
         self._scores = None
+        self._sorted_scores_indices = None
         self._colors = None
         self._set_data(data_sets)
 
     def set_visible(self,
                     visible: List[bool]):
+        if len(visible) != len(self._data_sets):
+            ValueError('List "visible" passed to set_visible must be same length as number of data sets')
+        if self._scores is not None:
+            visible = [visible[idx] for idx in self._sorted_scores_indices]
         for ax in self._axes:
             for idx, line in enumerate(ax.lines):
-                if self._scores is not None:
-                    show = visible[self._sort_map[idx]]
-                else:
-                    show = visible[idx]
-                line.set_visible(show)
+                if not isinstance(visible[idx], bool):
+                    ValueError('List "visible" passed to set_visible must only contain booleans.')
+                line.set_visible(visible[idx])
 
     def plot(self,
              num_ticks: int=7,
@@ -206,7 +209,7 @@ class ParCoord:
         self._scores_norm_max = scores_norm_max
         self._color_map_norm = color_map_norm
         self._use_variable_line_width = use_variable_line_width
-        self._sort_map = [sorted_scores_indices.index(idx) for idx in range(len(sorted_scores_indices))]
+        self._sorted_scores_indices = sorted_scores_indices
 
     def set_labels(self,
                    labels: list):

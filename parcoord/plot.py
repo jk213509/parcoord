@@ -3,6 +3,7 @@
 # Copyright (c) 2017 by Dr. Justin Klotz
 
 import numpy as np
+from typing import List
 import matplotlib
 from matplotlib import colors as mpl_colors, cm as mpl_cm, colorbar as mpl_colorbar, figure as mpl_figure,\
     ticker as mpl_ticker
@@ -10,7 +11,8 @@ from matplotlib import colors as mpl_colors, cm as mpl_cm, colorbar as mpl_color
 # Make sure that we are using QT5
 matplotlib.use('Qt5Agg')
 
-# TODO: Make re-plot functionality (don't re-create axes)
+# TODO: Verify set_visible works
+# TODO: Verify re-plot works
 # TODO: Determine which part of code takes longest (pproject from pypi)
 
 
@@ -46,8 +48,8 @@ class ParCoord:
         self._color_style = None
         self._color_map_norm = None
         self._use_variable_line_width = False
+        self._sort_map = None
 
-        # Normalize, find limits of data
         self._set_data(data_sets)
 
     def _set_data(self,
@@ -57,7 +59,6 @@ class ParCoord:
             if np.nan in data_set:
                 raise ValueError('Argument "data_sets" must not contain nan\'s')
 
-        # Store values
         self._data_sets = data_sets
 
     def reset_data(self,
@@ -66,13 +67,23 @@ class ParCoord:
         self._colors = None
         self._set_data(data_sets)
 
+    def set_visible(self,
+                    visible: List[bool]):
+        for ax in self._axes:
+            for idx, line in enumerate(ax.lines):
+                if self._scores is not None:
+                    show = visible[self._sort_map[idx]]
+                else:
+                    show = visible[idx]
+                line.set_visible(show)
+
     def plot(self,
              num_ticks: int=7,
              line_width=1.1,
              y_min: list or None=None,
              y_max: list or None=None):
 
-        # Calculate the limits of the data
+        # Calculate data set limits
         data_sets_info = list()
         for idx, m in enumerate(zip(*self._data_sets)):
             if y_min is not None:
@@ -101,7 +112,7 @@ class ParCoord:
             ax.clear()
 
         # Plot the data sets on all the subplots
-        for i, ax in enumerate(self._axes):
+        for i, ax in enumerate(self._axes[:self._num_dims]):
             for dsi in range(len(norm_data_sets)):
                 if self._colors is not None:
                     if self._scores is not None and self._use_variable_line_width and self._scores[0]!=self._scores[-1]:
@@ -117,7 +128,7 @@ class ParCoord:
             ax.set_xlim([self._x[i], self._x[i+1]])
 
         # Set the axis ticks
-        for dimension, (ax, xx) in enumerate(zip(self._axes, self._x[:-1])):
+        for dimension, (ax, xx) in enumerate(zip(self._axes[:self._num_dims], self._x[:self._num_dims])):
             # x-axis
             ax.xaxis.set_major_locator(mpl_ticker.FixedLocator([xx]))
             # y-axis
@@ -128,7 +139,10 @@ class ParCoord:
             ax.set_yticklabels(labels, color='k', weight='semibold')  # backgroundcolor='0.75'
 
         # Move the final axis' ticks to the right-hand side
-        ax_last = self._axes[-1].twinx()
+        if len(self._axes) < self._num_dims:
+            ax_last = self._axes[-1].twinx()  # create last axis if this is not a re-plot
+        else:
+            ax_last = self._axes[-1]
         dimension_last = self._num_dims-1
         # x-axis
         ax_last.xaxis.set_major_locator(mpl_ticker.FixedLocator([self._x[-2], self._x[-1]]))
@@ -192,6 +206,7 @@ class ParCoord:
         self._scores_norm_max = scores_norm_max
         self._color_map_norm = color_map_norm
         self._use_variable_line_width = use_variable_line_width
+        self._sort_map = [sorted_scores_indices.index(idx) for idx in range(len(sorted_scores_indices))]
 
     def set_labels(self,
                    labels: list):

@@ -3,6 +3,7 @@
 # Copyright (c) 2017 by Dr. Justin Klotz
 
 import sys
+import time
 import random
 from parcoord.plot import ParCoord
 from PyQt5 import QtCore, QtWidgets
@@ -28,10 +29,10 @@ scores = [5*random.uniform(0, 1) for _ in range(60)]
 
 # Make x-axis tick labels
 var_labels = ['var' + str(idx) for idx in range(num_vars)]
-
 # Examples
 mode = 4
 par_co = None
+t_start = time.time()
 if mode == 0:  # basic
     par_co = ParCoord(data)
     par_co.plot()
@@ -70,6 +71,7 @@ elif mode == 4:  # color map is specified with additional inputs
     par_co.set_labels(var_labels)
     par_co.add_color_bar(label='Test Label')
 fig = par_co.fig
+print('Plotting took ' + str(time.time()-t_start) + ' seconds.')
 
 # Show in PyQt
 # App
